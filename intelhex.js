@@ -14,6 +14,19 @@
  * 03          | Start Segment Address
  * 04          | Extended Linear Address
  * 05          | Start Linear Address 
+ * 
+ * Extended Linear Address Records (HEX386)
+ * Extended linear address records are also known as 32-bit address records and HEX386 records.
+ * These records contain the upper 16 bits (bits 16-31) of the data address.
+ * The extended linear address record always has two data bytes and appears as follows:
+ * :02000004FFFFFC
+ * where:
+ * 02 is the number of data bytes in the record.
+ * 0000 is the address field. For the extended linear address record, this field is always 0000.
+ * 04 is the record type 04 (an extended linear address record).
+ * FFFF is the upper 16 bits of the address.
+ * FC is the checksum of the record and is calculated as
+ * 01h + NOT(02h + 00h + 00h + 04h + FFh + FFh).
  */
 
 
@@ -60,6 +73,47 @@ class IntelHexReader
    {  this.aHexData = []; }
 
    /**
+    * This function handles the record type 00 (data).
+    * @param { } nRecLen 
+    * @param {*} nRecAdr 
+    * @param {*} sRecDat 
+    */
+   #handleRec00( nRecLen, nRecAdr, sRecDat )
+   {
+      let nRet = -1;
+      let aDat = [];
+      nRecAdr += nAddrOffset;
+      if( 0 == ( sRecDat.length % 2 ) )
+      {
+         for( let n=0; n<sRecDat.length; n+=2 ) 
+         {
+            this.aHexData[nRecAdr] = parseInt( "0x"+sRecDat[n]+sRecDat[n+1] );
+            nRecAdr++;
+         };
+         nRet = 0;
+      }
+      return nRet;
+   }
+
+   /**
+    * This function handles the record type 04 (extended linear address record).
+    * @param {*} nRecLen 
+    * @param {*} nRecAdr 
+    * @param {*} sRecDat 
+    * @return    int       0/-1
+    */
+   #handleRec04( nRecLen, nRecAdr, sRecDat )
+   {
+      let nRet = -1;
+      if( ( 2==nRecLen ) && ( 0==nRecAdr ) && ( 4==sRecDat.length ) )
+      {
+         this.nAddrOffset = parseInt( "0x"+sRecDat )*65536;
+         nRet = 0;
+      }
+      return nRet;
+   }
+
+   /**
     * This function gets an intel-hex line and stores
     * the decoded byte in an internal data array.
     * @param   sRecord     an intel-hex line
@@ -79,16 +133,11 @@ class IntelHexReader
          let nRetSum = parseInt( "0x"+aData[5] );
          //
          if( 0 == nRecTyp )
-         {  let aDat = [];
-            for( let n=0; n<sRecDat.length; n+=2 ) 
-            {  this.aHexData[nRecAdr] = parseInt( "0x"+sRecDat[n]+sRecDat[n+1] );
-               nRecAdr++;
-            };
-            nRet = nRecLen;
-         }
+         {  nRet = this.#handleRec00( nRecLen, nRecAdr, sRecDat ); }
          else if( 1 == nRecTyp )
-         {  nRet = 0;
-         }
+         {  nRet = 0; }
+         else if( 4 == nRecTyp )
+         {  nRet = this.#handleRec04( nRecLen, nRecAdr, sRecDat ); }
       }
       return nRet;
    }
